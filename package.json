@@ -1,0 +1,25 @@
+{
+  "name": "anyrpc",
+  "version": "1.0.3",
+  "type": "module",
+  "main": "dist/cjs/anyrpc.js",
+  "exports": {
+    "require": "./dist/cjs/anyrpc.js",
+    "import": "./dist/esm/anyrpc.js"
+  },
+	"files": [
+		"dist"
+	],
+  "scripts": {
+    "build": "npm run build:cjs && npm run build:esm",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [],
+  "author": "Kinsi",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
