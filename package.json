@@ -1,5 +1,5 @@
 {
-  "name": "anyrpc",
+  "name": "@kinsi/anyrpc",
   "version": "1.0.0",
   "type": "module",
   "main": "dist/cjs/anyrpc.js",
