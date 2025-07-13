@@ -6,13 +6,17 @@ Why every existing RPC implementation ships with a fixed, builtin Wire and Trans
 
 This aims to fix that, making for a simple, pluggable wrapper for handling RPC calls that could easily be implemented in other languages as well.
 
+## Install
+
+`npm install @kinsi/anyrpc`
+
 ## Examples
 
 Obviously these include absolutely no error handling whatsoever but you get the gist
 
 #### WebSocket (Bidirectional)
 ```ts
-import AnyRPC, { type RPC } from "anyrpc";
+import AnyRPC, { type RPC } from "@kinsi/anyrpc";
 import uWebSockets from "uWebSockets.js"
 
 interface BackendMethod extends RPC {
@@ -82,7 +86,7 @@ interface ServiceMethod extends RPC {
 #### HTTP (Unidirectional, Backend can only be called, not make calls itself)
 
 ```ts
-import AnyRPC, { type RPC } from "anyrpc";
+import AnyRPC, { type RPC } from "@kinsi/anyrpc";
 import uWebSockets from "uWebSockets.js"
 
 interface FooBar extends RPC {
