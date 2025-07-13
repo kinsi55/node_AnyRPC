@@ -45,6 +45,7 @@ class AnyRPC {
 		const sub = new AnyRPC(sendMethod);
 
 		sub.#handlerForward = this;
+		sub.#rpcHandlers = this.#rpcHandlers;
 
 		return sub;
 	}
