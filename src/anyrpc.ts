@@ -51,7 +51,9 @@ class AnyRPC {
 	}
 
 	async #call<T extends RPC>(wrappedMsg: WrappedCall, timeoutMs: number) : Promise<T["return"]> {
-		if(wrappedMsg.anyRpcCallId === FIRE_AND_FORGET_CALLID)
+		const callId = wrappedMsg.anyRpcCallId;
+
+		if(callId === FIRE_AND_FORGET_CALLID)
 			return this.#sendMethod(wrappedMsg);
 
 		const p = new Promise((res, rej) => {
@@ -64,7 +66,7 @@ class AnyRPC {
 			const callback = (msg: WrappedResponse) => {
 				clearTimeout(timeout);
 
-				this.#responseHandlers.delete(msgNum);
+				this.#responseHandlers.delete(callId);
 
 				if(!msg.responseOk)
 					return rej(new Error(msg.response));
@@ -73,7 +75,7 @@ class AnyRPC {
 				return true;
 			};
 
-			this.#responseHandlers.set(msgNum, callback);
+			this.#responseHandlers.set(callId, callback);
 		});
 
 		await this.#sendMethod(wrappedMsg);
