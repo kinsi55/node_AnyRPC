@@ -38,7 +38,7 @@ class AnyRPC {
 	#handlerForward: AnyRPC | undefined;
 
 	constructor(sendMethod: (msg: WrappedCall) => any) {
-		this.#sendMethod = sendMethod.bind(this) as MessageSender;
+		this.#sendMethod = sendMethod as MessageSender;
 	}
 
 	getSubChannel(sendMethod: (msg: WrappedCall) => any): AnyRPC {
@@ -129,7 +129,7 @@ class AnyRPC {
 			response: "Method not found"
 		};
 
-		const handler = this.#rpcHandlers[call.message];
+		const handler = this.#rpcHandlers[call.method];
 
 		if(call.anyRpcCallId === FIRE_AND_FORGET_CALLID)
 			return true;
