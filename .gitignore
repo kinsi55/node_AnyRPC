@@ -1,2 +1,3 @@
-dist
+dist/*/*
+!dist/cjs/package.json
 node_modules
