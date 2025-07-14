@@ -1,8 +1,7 @@
 {
   "name": "@kinsi/anyrpc",
-  "version": "1.0.0",
-  "type": "module",
-  "main": "dist/cjs/anyrpc.js",
+  "version": "1.0.1",
+  "main": "dist/esm/anyrpc.js",
   "exports": {
     "require": "./dist/cjs/anyrpc.js",
     "import": "./dist/esm/anyrpc.js"
@@ -12,11 +11,11 @@
 	],
   "scripts": {
     "build": "npm run build:cjs && npm run build:esm",
-    "build:cjs": "tsc -p tsconfig.cjs.json",
-    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs": "tsc --outDir dist/cjs --module commonjs",
+    "build:esm": "tsc --outDir dist/esm --module es2020",
     "prepublishOnly": "npm run build"
   },
-  "keywords": [],
+  "keywords": ["anyrpc", "rpc", "websocket", "redis"],
   "author": "Kinsi",
   "license": "MIT",
   "devDependencies": {
