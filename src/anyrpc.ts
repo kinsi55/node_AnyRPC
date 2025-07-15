@@ -118,7 +118,7 @@ class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList<any>> {
 	}
 
 	setForward<TargetHandlers extends RPCList<any>, T extends keyofStr<TargetHandlers>>(
-		def: T, target: AnyRPC<any, TargetHandlers>, timeoutMs = 5e3
+		def: T, target: AnyRPC<TargetHandlers, any>, timeoutMs = 5e3
 	) {
 		if(this.#handlerForward)
 			throw new Error("Cannot add Forward to Sub-Channel");
