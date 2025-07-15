@@ -4,6 +4,14 @@ export interface RPC {
 	return: any;
 }
 
+export type RPCList<T extends Record<string, { call: any; return: any }>> = {
+  [K in keyof T]: {
+    name: K & string;
+    call: T[K]["call"];
+    return: T[K]["return"];
+  };
+};
+
 interface AnyRPCMessage {
 	anyRpcCallId: number;
 }
@@ -29,20 +37,22 @@ KV.prototype = Object.create(null);
 const FIRE_AND_FORGET_CALLID = -1;
 const DATA_UNCONSUMED = Symbol("DATA_UNCONSUMED");
 
-class AnyRPC {
+type keyofStr<T> = Extract<keyof T, string>;
+
+class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList<any>> {
 	#sendMethod: MessageSender;
 
 	#responseHandlers = new Map() as Map<number, (x: WrappedResponse) => any>;
 	// @ts-ignore
 	#rpcHandlers: {[key: string]: RPCHandler<any>} = new KV();
-	#handlerForward: AnyRPC | undefined;
+	#handlerForward: AnyRPC<any, Handlers> | undefined;
 
 	constructor(sendMethod: (msg: WrappedCall) => any) {
 		this.#sendMethod = sendMethod as MessageSender;
 	}
 
-	getSubChannel(sendMethod: (msg: WrappedCall) => any): AnyRPC {
-		const sub = new AnyRPC(sendMethod);
+	getSubChannel<Calls extends RPCList<any>>(sendMethod: (msg: WrappedCall) => any): AnyRPC<Calls, Handlers> {
+		const sub = new AnyRPC<Calls, Handlers>(sendMethod);
 
 		sub.#handlerForward = this;
 		sub.#rpcHandlers = this.#rpcHandlers;
@@ -83,7 +93,13 @@ class AnyRPC {
 		return p as Promise<T["return"]>;
 	}
 
-	async call<T extends RPC>(def: T["name"], data: T["call"] = null, timeoutMs = 5e3) : Promise<T["return"]> {
+	async call<T extends keyofStr<Calls>>(
+		def: T, data: Calls[T]["call"] = null, timeoutMs = 5e3
+	) : Promise<Calls[T]["return"]> {
+		// I would hope that past this point, every possible dangling handler has timed out
+		if(msgNum >= Number.MIN_SAFE_INTEGER)
+			msgNum = 1;
+
 		return this.#call({
 			anyRpcCallId: msgNum++,
 			method: def,
@@ -91,7 +107,9 @@ class AnyRPC {
 		}, timeoutMs);
 	}
 
-	async callWithoutResponse<T extends RPC>(def: T["name"], data: T["call"] = null, timeoutMs = 5e3) : Promise<void> {
+	async callWithoutResponse<T extends keyofStr<Calls>>(
+		def: T, data: Calls[T]["call"] = null, timeoutMs = 5e3
+	) : Promise<Calls[T]["return"]> {
 		return this.#call({
 			anyRpcCallId: FIRE_AND_FORGET_CALLID,
 			method: def,
@@ -99,7 +117,9 @@ class AnyRPC {
 		}, timeoutMs);
 	}
 
-	setForward<T extends RPC>(def: T["name"], target: AnyRPC, timeoutMs = 5e3) {
+	setForward<TargetHandlers extends RPCList<any>, T extends keyofStr<TargetHandlers>>(
+		def: T, target: AnyRPC<any, TargetHandlers>, timeoutMs = 5e3
+	) {
 		if(this.#handlerForward)
 			throw new Error("Cannot add Forward to Sub-Channel");
 
@@ -108,7 +128,7 @@ class AnyRPC {
 		};
 	}
 
-	setHandler<T extends RPC>(def: T["name"], handler: RPCHandler<T>) {
+	setHandler<T extends keyofStr<Handlers>>(def: T, handler: RPCHandler<Handlers[T]>) {
 		if(this.#handlerForward)
 			throw new Error("Cannot add Handler to Sub-Channel");
 
@@ -116,12 +136,34 @@ class AnyRPC {
 	}
 
 	tryConsume(message: AnyRPCMessage, responseHandlerOverride?: MessageSender): typeof DATA_UNCONSUMED | boolean | Promise<boolean> {
+		/*
+			To try and avoid collisions, whenever we receive a message ourselves we set our message id to
+			whatever we were sent incase the same message channel is shared across multiple different
+			senders / receivers
+		*/
+		if(typeof message.anyRpcCallId === "number")
+			msgNum = message.anyRpcCallId + 1;
+
 		if((message as WrappedCall).method) {
 			return this.#handleCall(message as WrappedCall, responseHandlerOverride ?? this.#sendMethod);
 		} else if((message as WrappedResponse).responseOk !== undefined) {
 			return this.#handleResponse(message as WrappedResponse);
 		}
 		return DATA_UNCONSUMED;
+	}
+
+	tryConsumeCall(message: WrappedCall, responseHandlerOverride?: MessageSender): typeof DATA_UNCONSUMED | Promise<boolean> {
+		if(!message.method)
+			return DATA_UNCONSUMED;
+
+		return this.#handleCall(message, responseHandlerOverride ?? this.#sendMethod);
+	}
+
+	tryConsumeResponse(message: WrappedResponse): typeof DATA_UNCONSUMED | boolean {
+		if(!message.responseOk !== undefined)
+			return DATA_UNCONSUMED;
+
+		return this.#handleResponse(message);
 	}
 
 	async #handleCall(call: WrappedCall, sender: MessageSender): Promise<boolean> {
