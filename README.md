@@ -1,6 +1,10 @@
 # AnyRPC
 
-RPC over any wire(HTTP, WebSocket, Redis, TPC, Bluetooth, Serial, ...) using any transport(JSON, Messagepack, Protobuf, ...) - with TypeScript!
+RPC handling
+
+- Over Any wire(HTTP, WebSocket, Redis, TPC, Bluetooth, Serial, ...)
+- Using Any transport(JSON, Messagepack, Protobuf, ...)
+- Typed end-to-end!
 
 Why every existing RPC implementation ships with a fixed, builtin Wire and Transport? I dont know!
 
@@ -16,26 +20,28 @@ Obviously these include absolutely no error handling whatsoever but you get the 
 
 #### WebSocket (Bidirectional)
 ```ts
-import AnyRPC, { type RPC } from "@kinsi/anyrpc";
+import AnyRPC, { type RPCList } from "@kinsi/anyrpc";
 import uWebSockets from "uWebSockets.js"
 
-interface BackendMethod extends RPC {
-	name: "BackendMethod";
-	call: { baz: number };
-	return: number;
-}
+type BackendMethods = RPCList<{
+	Foo: {
+		call: { baz: number },
+		return: number
+	}
+}>;
 
-interface ServiceMethod extends RPC {
-	name: "ServiceMethod";
-	call: null;
-	return: number;
-}
+type ServiceMethods = RPCList<{
+	Bar: {
+		call: void;
+		return: number;
+	}
+}>;
 
 // Backend
 (() => {
 	const app = uWebSockets.App();
-	const rpc = new AnyRPC(null);
-	const websockets = new Map<uWebSockets.WebSocket<any>, AnyRPC>();
+	const rpc = new AnyRPC<ServiceMethods, BackendMethods>(null);
+	const websockets = new Map<uWebSockets.WebSocket<any>, AnyRPC<ServiceMethods, BackendMethods>>();
 
 	const textDecoder = new TextDecoder();
 
@@ -57,28 +63,28 @@ interface ServiceMethod extends RPC {
 
 	app.listen(3000, x => null);
 
-	rpc.setHandler<BackendMethod>("BackendMethod", data => {
+	rpc.setHandler("Foo", data => {
 		return data.baz + 1;
 	});
 
 	setInterval(async () => {
 		for(const channel of websockets.values())
-			console.log("Response from Service:", await channel.call<ServiceMethod>("ServiceMethod"));
+			console.log("Response from Service:", await channel.call("Bar"));
 	}, 5000);
 });
 
 // Service
 (() => {
 	const ws = new WebSocket("0.0.0.0:3000/wsEndpoint");
-	const rpc = new AnyRPC(x => ws.send(JSON.stringify(x)));
+	const rpc = new AnyRPC<BackendMethods, ServiceMethods>(x => ws.send(JSON.stringify(x)));
 
 	ws.onmessage = (event) => rpc.tryConsume(JSON.parse(event.data));
 
-	rpc.setHandler<ServiceMethod>("ServiceMethod", () => {
+	rpc.setHandler("Bar", () => {
 		return 0xdeadbeef;
 	});
 
-	rpc.call<BackendMethod>("BackendMethod", {baz: 41}).then(x => console.log("Answer to everything:", x));
+	rpc.call("Foo", {baz: 41}).then(x => console.log("Answer to everything:", x));
 });
 ```
 
@@ -89,34 +95,35 @@ interface ServiceMethod extends RPC {
 import AnyRPC, { type RPC } from "@kinsi/anyrpc";
 import uWebSockets from "uWebSockets.js"
 
-interface FooBar extends RPC {
-	name: "foobar";
-	call: { baz: number };
-	return: number;
-}
+type BackendMethods = RPCList<{
+	Foo: {
+		call: { baz: number };
+		return: number;
+	}
+}>;
 
 // Backend
 (() => {
-	const rpc = new AnyRPC(null);
+	const rpc = new AnyRPC<null, BackendMethods>(null);
 
 	uWebSockets.App().post("/RPC/:method", (res, req) => {
 		// For sake of simplicity, I'm using a url param here
 		rpc.tryConsume(JSON.parse(req.getQuery("call")), cb => res.end(JSON.stringify(cb)));
 	}).listen(3000, x => null);
 
-	rpc.setHandler<FooBar>("foobar", async(data) => {
+	rpc.setHandler("Foo", async(data) => {
 		return data.baz + 1;
 	});
 });
 
 // Client
 (() => {
-	const rpc = new AnyRPC(x => {
+	const rpc = new AnyRPC<BackendMethods, null>(x => {
 		return fetch(`0.0.0.0:3000/RPC/${x.method}?` + new URLSearchParams({
 			call: JSON.stringify(x)
 		}))
 	});
 
-	rpc.call<FooBar>("foobar", {baz: 41}).then(x => console.log("Answer to everything:", x));
+	rpc.call("Foo", {baz: 41}).then(x => console.log("Answer to everything:", x));
 });
 ```
