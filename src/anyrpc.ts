@@ -12,22 +12,23 @@ export type RPCList<T extends Record<string, { call: any; return: any }>> = {
   };
 };
 
-interface AnyRPCMessage {
+export interface AnyRPCMessage {
 	anyRpcCallId: number;
 }
 
-interface WrappedCall extends AnyRPCMessage {
+export interface WrappedCall extends AnyRPCMessage {
 	method: string;
 	message: any;
 }
 
-interface WrappedResponse extends AnyRPCMessage {
+export interface WrappedResponse extends AnyRPCMessage {
 	responseOk: boolean;
 	response: any;
 }
 
 type RPCHandler<T extends RPC> = (data: T["call"]) => T["return"] | Promise<T["return"]>;
 type MessageSender = (msg: WrappedCall | WrappedResponse) => Promise<any> | any;
+type keyofStr<T> = Extract<keyof T, string>;
 
 let msgNum = 1;
 
@@ -35,11 +36,9 @@ const KV = function() {};
 KV.prototype = Object.create(null);
 
 const FIRE_AND_FORGET_CALLID = -1;
-const DATA_UNCONSUMED = Symbol("DATA_UNCONSUMED");
+export const DATA_UNCONSUMED = Symbol("DATA_UNCONSUMED");
 
-type keyofStr<T> = Extract<keyof T, string>;
-
-class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList<any>> {
+export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList<any>> {
 	#sendMethod: MessageSender;
 
 	#responseHandlers = new Map() as Map<number, (x: WrappedResponse) => any>;
@@ -194,7 +193,3 @@ class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList<any>> {
 		return this.#responseHandlers.get(response.anyRpcCallId)?.(response) ?? false;
 	}
 }
-
-export default AnyRPC;
-
-export {DATA_UNCONSUMED};
