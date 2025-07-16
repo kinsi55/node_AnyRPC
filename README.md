@@ -121,7 +121,7 @@ type BackendMethods = RPCList<{
 	const rpc = new AnyRPC<BackendMethods, null>(x => {
 		return fetch(`0.0.0.0:3000/RPC/${x.method}?` + new URLSearchParams({
 			call: JSON.stringify(x)
-		}))
+		})).then(x => x.json()).then(x => rpc.tryConsume(x));
 	});
 
 	rpc.call("Foo", {baz: 41}).then(x => console.log("Answer to everything:", x));
