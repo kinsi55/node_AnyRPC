@@ -46,7 +46,7 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 	#rpcHandlers: {[key: string]: RPCHandler<any>} = new KV();
 	#handlerForward: AnyRPC<any, Handlers> | undefined;
 
-	constructor(sendMethod: (msg: WrappedCall) => any) {
+	constructor(sendMethod?: (msg: WrappedCall) => any) {
 		this.#sendMethod = sendMethod as MessageSender;
 	}
 
