@@ -2,13 +2,15 @@ export interface RPC {
 	name: string;
 	call: any;
 	return: any;
+	auxCallDataOverride?: any;
 }
 
-export type RPCList<T extends Record<string, { call: any; return: any }>> = {
+export type RPCList<T extends Record<string, Omit<RPC, "name">>, D = never> = {
   [K in keyof T]: {
     name: K & string;
     call: T[K]["call"];
     return: T[K]["return"];
+		auxCallData?: "auxCallDataOverride" extends keyof T[K] ? T[K]["auxCallDataOverride"] : D;
   };
 };
 
@@ -16,9 +18,15 @@ export interface AnyRPCMessage {
 	anyRpcCallId: number;
 }
 
-export interface WrappedCall extends AnyRPCMessage {
+export interface WrappedCall<D = any> extends AnyRPCMessage {
 	method: string;
 	message: any;
+	/**
+	 * When passing a deserialized WrappedCall to tryConsume, this value is passed as the 2nd
+	 * argument to the RPC handler. This allows you to pass additional values needed in the handler
+	 * like a session object
+	 */
+	auxCallData?: D;
 }
 
 export interface WrappedResponse extends AnyRPCMessage {
@@ -26,7 +34,7 @@ export interface WrappedResponse extends AnyRPCMessage {
 	response: any;
 }
 
-type RPCHandler<T extends RPC> = (data: T["call"]) => T["return"] | Promise<T["return"]>;
+type RPCHandler<T extends RPC, D = any> = (data: T["call"], auxData?: D) => T["return"] | Promise<T["return"]>;
 type MessageSender = (msg: WrappedCall | WrappedResponse) => Promise<any> | any;
 type keyofStr<T> = Extract<keyof T, string>;
 
@@ -38,7 +46,7 @@ KV.prototype = Object.create(null);
 const FIRE_AND_FORGET_CALLID = -1;
 export const DATA_UNCONSUMED = Symbol("DATA_UNCONSUMED");
 
-export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList<any>> {
+export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList<any, D>, D = any> {
 	#sendMethod: MessageSender;
 
 	#responseHandlers = new Map() as Map<number, (x: WrappedResponse) => any>;
@@ -96,7 +104,7 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 		def: T, data: Calls[T]["call"] = null, timeoutMs = 5e3
 	) : Promise<Calls[T]["return"]> {
 		// I would hope that past this point, every possible dangling handler has timed out
-		if(msgNum >= Number.MIN_SAFE_INTEGER)
+		if(msgNum >= Number.MAX_SAFE_INTEGER)
 			msgNum = 1;
 
 		return this.#call({
@@ -116,18 +124,20 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 		}, timeoutMs);
 	}
 
+	/**
+	 * Helper method that will "forward" incoming calls of the defined type to the given target
+	 * AnyRPC instance and then return back its return to the original caller.
+	 *
+	 * Given auxCallData was set on the WrappedCall, it is NOT forwarded. In those cases it should
+	 * be part of the message itself
+	 */
 	setForward<TargetHandlers extends RPCList<any>, T extends keyofStr<TargetHandlers>>(
 		target: AnyRPC<TargetHandlers, any>, def: T, timeoutMs = 5e3
 	) {
-		if(this.#handlerForward)
-			throw new Error("Cannot add Forward to Sub-Channel");
-
-		this.#rpcHandlers[def] = (data) => {
-			return target.call<T>(def, data, timeoutMs);
-		};
+		this.setHandler(def, (data) => target.call<T>(def, data, timeoutMs));
 	}
 
-	setHandler<T extends keyofStr<Handlers>>(def: T, handler: RPCHandler<Handlers[T]>) {
+	setHandler<T extends keyofStr<Handlers>>(def: T, handler: RPCHandler<Handlers[T], D>) {
 		if(this.#handlerForward)
 			throw new Error("Cannot add Handler to Sub-Channel");
 
@@ -180,7 +190,7 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 		if(handler) {
 			try {
 				response.responseOk = true;
-				response.response = await handler(call.message);
+				response.response = await handler(call.message, call.auxCallData);
 			} catch(ex) {
 				response.response = (ex as Error)?.message || ex
 			}
