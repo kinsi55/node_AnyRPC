@@ -1,6 +1,6 @@
 {
   "name": "@kinsi/anyrpc",
-  "version": "1.1.6",
+  "version": "1.1.8",
   "main": "dist/esm/anyrpc.js",
 	"type": "module",
   "exports": {

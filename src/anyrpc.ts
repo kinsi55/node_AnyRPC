@@ -10,7 +10,7 @@ export type RPCList<T extends Record<string, Omit<RPC, "name">>, D = never> = {
     name: K & string;
     call: T[K]["call"];
     return: T[K]["return"];
-		auxCallData?: "auxCallDataOverride" extends keyof T[K] ? T[K]["auxCallDataOverride"] : D;
+		auxCallData: "auxCallDataOverride" extends keyof T[K] ? T[K]["auxCallDataOverride"] : D;
   };
 };
 
@@ -34,11 +34,11 @@ export interface WrappedResponse extends AnyRPCMessage {
 	response: any;
 }
 
-type RPCHandler<T extends RPC, D = any> = (data: T["call"], auxData?: D) => T["return"] | Promise<T["return"]>;
+type RPCHandler<T extends RPC, D = any> = (data: T["call"], auxData: D) => T["return"] | Promise<T["return"]>;
 type MessageSender = (msg: WrappedCall | WrappedResponse) => Promise<any> | any;
 type keyofStr<T> = Extract<keyof T, string>;
 
-let msgNum = 1;
+let msgNum = 0;
 
 const KV = function() {};
 KV.prototype = Object.create(null);
@@ -46,7 +46,7 @@ KV.prototype = Object.create(null);
 const FIRE_AND_FORGET_CALLID = -1;
 export const DATA_UNCONSUMED = Symbol("DATA_UNCONSUMED");
 
-export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList<any, D>, D = any> {
+export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList<any, D>, D = never> {
 	#sendMethod: MessageSender;
 
 	#responseHandlers = new Map() as Map<number, (x: WrappedResponse) => any>;
@@ -105,10 +105,10 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 	) : Promise<Calls[T]["return"]> {
 		// I would hope that past this point, every possible dangling handler has timed out
 		if(msgNum >= Number.MAX_SAFE_INTEGER)
-			msgNum = 1;
+			msgNum = 0;
 
 		return this.#call({
-			anyRpcCallId: msgNum++,
+			anyRpcCallId: ++msgNum,
 			method: def,
 			message: data
 		}, timeoutMs);
@@ -150,7 +150,7 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 			whatever we were sent incase the same message channel is shared across multiple different
 			senders / receivers
 		*/
-		if(typeof message.anyRpcCallId === "number")
+		if(message.anyRpcCallId > 0)
 			msgNum = message.anyRpcCallId + 1;
 
 		if((message as WrappedCall).method) {
@@ -184,9 +184,6 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 
 		const handler = this.#rpcHandlers[call.method];
 
-		if(call.anyRpcCallId === FIRE_AND_FORGET_CALLID)
-			return true;
-
 		if(handler) {
 			try {
 				response.responseOk = true;
@@ -195,6 +192,9 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 				response.response = (ex as Error)?.message || ex
 			}
 		}
+
+		if(call.anyRpcCallId === FIRE_AND_FORGET_CALLID)
+			return true;
 
 		return sender(response);
 	}
