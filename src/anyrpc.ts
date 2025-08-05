@@ -137,7 +137,7 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 		this.setHandler(def, (data) => target.call<T>(def, data, timeoutMs));
 	}
 
-	setHandler<T extends keyofStr<Handlers>>(def: T, handler: RPCHandler<Handlers[T], D>) {
+	setHandler<T extends keyofStr<Handlers>>(def: T, handler: RPCHandler<Handlers[T], Handlers[T]["auxCallData"]>) {
 		if(this.#handlerForward)
 			throw new Error("Cannot add Handler to Sub-Channel");
 
