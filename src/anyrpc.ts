@@ -67,7 +67,7 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 		return sub;
 	}
 
-	async #call<T extends RPC>(wrappedMsg: WrappedCall, timeoutMs: number) : Promise<T["return"]> {
+	async #call<T extends RPC>(wrappedMsg: WrappedCall, timeoutMs: number = 5000) : Promise<T["return"]> {
 		const callId = wrappedMsg.anyRpcCallId;
 
 		if(callId === FIRE_AND_FORGET_CALLID)
@@ -100,6 +100,14 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 		return p as Promise<T["return"]>;
 	}
 
+	buildCall<T extends keyofStr<Calls>>(method: T, data: Calls[T]["call"] = null, callId: number = FIRE_AND_FORGET_CALLID) {
+		return {
+			anyRpcCallId: callId,
+			method,
+			message: data
+		};
+	}
+
 	async call<T extends keyofStr<Calls>>(
 		def: T, data: Calls[T]["call"] = null, timeoutMs = 5e3
 	) : Promise<Calls[T]["return"]> {
@@ -107,21 +115,13 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 		if(msgNum >= Number.MAX_SAFE_INTEGER)
 			msgNum = 0;
 
-		return this.#call({
-			anyRpcCallId: ++msgNum,
-			method: def,
-			message: data
-		}, timeoutMs);
+		return this.#call(this.buildCall(def, data, ++msgNum), timeoutMs);
 	}
 
 	async callWithoutResponse<T extends keyofStr<Calls>>(
-		def: T, data: Calls[T]["call"] = null, timeoutMs = 5e3
+		def: T, data: Calls[T]["call"] = null
 	) : Promise<Calls[T]["return"]> {
-		return this.#call({
-			anyRpcCallId: FIRE_AND_FORGET_CALLID,
-			method: def,
-			message: data
-		}, timeoutMs);
+		return this.#call(this.buildCall(def, data));
 	}
 
 	/**
