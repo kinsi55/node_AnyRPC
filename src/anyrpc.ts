@@ -145,7 +145,7 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 	}
 
 	setHandlers<T extends keyofStr<Handlers>>(handlers: {
-		[K in T]: RPCHandler<Handlers[T], Handlers[T]["auxCallData"]>
+		[K in T]: RPCHandler<Handlers[K], Handlers[K]["auxCallData"]>
 	}) {
 		for(const handler in handlers)
 			this.setHandler(handler, handlers[handler]);
