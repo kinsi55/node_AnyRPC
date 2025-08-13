@@ -46,22 +46,29 @@ KV.prototype = Object.create(null);
 const FIRE_AND_FORGET_CALLID = -1;
 export const DATA_UNCONSUMED = Symbol("DATA_UNCONSUMED");
 
+interface Options {
+	ignoreUnhandled?: boolean;
+	allowHandlerOverride?: boolean;
+};
+
 export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList<any, D>, D = never> {
 	#sendMethod: MessageSender;
+	#options: Options;
 
 	#responseHandlers = new Map() as Map<number, (x: WrappedResponse) => any>;
 	// @ts-ignore
 	#rpcHandlers: {[key: string]: RPCHandler<any>} = new KV();
-	#handlerForward: AnyRPC<any, Handlers> | undefined;
+	#superInstance: AnyRPC<any, Handlers> | undefined;
 
-	constructor(sendMethod?: (msg: WrappedCall) => any) {
+	constructor(sendMethod?: (msg: WrappedCall) => any, options?: Options) {
 		this.#sendMethod = sendMethod as MessageSender;
+		this.#options = options || {};
 	}
 
 	getSubChannel<Calls extends RPCList<any>>(sendMethod: (msg: WrappedCall) => any): AnyRPC<Calls, Handlers> {
 		const sub = new AnyRPC<Calls, Handlers>(sendMethod);
 
-		sub.#handlerForward = this;
+		sub.#superInstance = this;
 		sub.#rpcHandlers = this.#rpcHandlers;
 
 		return sub;
@@ -143,8 +150,11 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 	}
 
 	setHandler<T extends keyofStr<Handlers>>(def: T, handler: RPCHandler<Handlers[T], Handlers[T]["auxCallData"]>) {
-		if(this.#handlerForward)
+		if(this.#superInstance)
 			throw new Error("Cannot add Handler to Sub-Channel");
+
+		if(this.#rpcHandlers[def] && !this.#options.allowHandlerOverride)
+			throw new Error(`Tried to set handler for Method ${def} but one already exists`);
 
 		this.#rpcHandlers[def] = handler;
 	}
@@ -204,6 +214,8 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 			} catch(ex) {
 				response.response = (ex as Error)?.message || ex
 			}
+		} else if(this.#options.ignoreUnhandled) {
+			return false;
 		}
 
 		if(callWithoutResponse)
