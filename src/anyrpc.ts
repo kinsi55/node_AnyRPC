@@ -34,7 +34,7 @@ export interface WrappedResponse extends AnyRPCMessage {
 	response: any;
 }
 
-type RPCHandler<T extends RPC, D = any> = (data: T["call"], auxData: D) => T["return"] | Promise<T["return"]>;
+type RPCHandler<T extends RPC, D = any> = (data: T["call"], auxData: D, noResponse: boolean) => T["return"] | Promise<T["return"]>;
 type MessageSender = (msg: WrappedCall | WrappedResponse) => Promise<any> | any;
 type keyofStr<T> = Extract<keyof T, string>;
 
@@ -134,7 +134,12 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 	setForward<TargetHandlers extends RPCList<any>, T extends keyofStr<TargetHandlers>>(
 		target: AnyRPC<TargetHandlers, any>, def: T, timeoutMs = 5e3
 	) {
-		this.setHandler(def, (data) => target.call<T>(def, data, timeoutMs));
+		this.setHandler(def, (data, _, noResponse) => {
+			if(!noResponse)
+				return target.call(def, data, timeoutMs);
+
+			target.callWithoutResponse(def, data);
+		});
 	}
 
 	setHandler<T extends keyofStr<Handlers>>(def: T, handler: RPCHandler<Handlers[T], Handlers[T]["auxCallData"]>) {
@@ -190,17 +195,18 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 		};
 
 		const handler = this.#rpcHandlers[call.method];
+		const callWithoutResponse = call.anyRpcCallId === FIRE_AND_FORGET_CALLID;
 
 		if(handler) {
 			try {
 				response.responseOk = true;
-				response.response = await handler(call.message, call.auxCallData);
+				response.response = await handler(call.message, call.auxCallData, callWithoutResponse);
 			} catch(ex) {
 				response.response = (ex as Error)?.message || ex
 			}
 		}
 
-		if(call.anyRpcCallId === FIRE_AND_FORGET_CALLID)
+		if(callWithoutResponse)
 			return true;
 
 		return sender(response);
