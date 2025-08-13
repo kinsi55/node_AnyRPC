@@ -144,6 +144,13 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 		this.#rpcHandlers[def] = handler;
 	}
 
+	setHandlers<T extends keyofStr<Handlers>>(handlers: {
+		[K in T]: RPCHandler<Handlers[T], Handlers[T]["auxCallData"]>
+	}) {
+		for(const handler in handlers)
+			this.setHandler(handler, handlers[handler]);
+	}
+
 	tryConsume(message: AnyRPCMessage, responseHandlerOverride?: MessageSender): typeof DATA_UNCONSUMED | boolean | Promise<boolean> {
 		/*
 			To try and avoid collisions, whenever we receive a message ourselves we set our message id to
