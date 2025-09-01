@@ -38,8 +38,6 @@ type RPCHandler<T extends RPC, D = any> = (data: T["call"], auxData: D, noRespon
 type MessageSender = (msg: WrappedCall | WrappedResponse) => Promise<any> | any;
 type keyofStr<T> = Extract<keyof T, string>;
 
-let msgNum = 0;
-
 const KV = function() {};
 KV.prototype = Object.create(null);
 
@@ -54,6 +52,7 @@ interface Options {
 export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList<any, D>, D = never> {
 	#sendMethod: MessageSender;
 	#options: Options;
+	#msgNum: number = 0;
 
 	#responseHandlers = new Map() as Map<number, (x: WrappedResponse) => any>;
 	// @ts-ignore
@@ -119,10 +118,12 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 		def: T, data: Calls[T]["call"] = null, timeoutMs = 5e3
 	) : Promise<Calls[T]["return"]> {
 		// I would hope that past this point, every possible dangling handler has timed out
-		if(msgNum >= Number.MAX_SAFE_INTEGER)
-			msgNum = 0;
+		if(this.#msgNum >= Number.MAX_SAFE_INTEGER)
+			this.#msgNum = 0;
 
-		return this.#call(this.buildCall(def, data, ++msgNum), timeoutMs);
+		const callId = ++this.#msgNum + Math.random();
+
+		return this.#call(this.buildCall(def, data, callId), timeoutMs);
 	}
 
 	async callWithoutResponse<T extends keyofStr<Calls>>(
@@ -167,14 +168,6 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 	}
 
 	tryConsume(message: AnyRPCMessage, responseHandlerOverride?: MessageSender): typeof DATA_UNCONSUMED | boolean | Promise<boolean> {
-		/*
-			To try and avoid collisions, whenever we receive a message ourselves we set our message id to
-			whatever we were sent incase the same message channel is shared across multiple different
-			senders / receivers
-		*/
-		if(message.anyRpcCallId > 0)
-			msgNum = message.anyRpcCallId + 1;
-
 		if((message as WrappedCall).method) {
 			return this.#handleCall(message as WrappedCall, responseHandlerOverride ?? this.#sendMethod);
 		} else if((message as WrappedResponse).responseOk !== undefined) {
