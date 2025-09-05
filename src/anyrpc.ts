@@ -202,8 +202,8 @@ export default class AnyRPC<Calls extends RPCList<any>, Handlers extends RPCList
 
 		if(handler) {
 			try {
-				response.responseOk = true;
 				response.response = await handler(call.message, call.auxCallData, callWithoutResponse);
+				response.responseOk = true;
 			} catch(ex) {
 				response.response = (ex as Error)?.message || ex
 			}
